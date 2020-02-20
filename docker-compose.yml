@@ -1,0 +1,9 @@
+version: "2"
+services:
+  chirpstack-simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile-devel
+    command: make
+    volumes:
+      - ./:/chirpstack-simulator

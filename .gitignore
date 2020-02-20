@@ -1,0 +1,9 @@
+# hidden files
+.*
+
+# config
+/*.toml
+/*.json
+
+# builds
+/build/
