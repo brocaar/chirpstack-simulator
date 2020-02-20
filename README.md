@@ -105,45 +105,43 @@ log_level=4
 
 
 # Simulator configuration.
+[[simulator]]
+
+# Service-profile ID.
 #
-# Example:
-# [[simulator]]
+# It is recommended to create a new organization with a new service-profile
+# in the ChirpStack Application Server.
+service_profile_id="1f32476e-a112-4f00-bcc7-4aab4bfefa1d"
+
+# Duration.
 #
-# # Service-profile ID.
-# #
-# # It is recommended to create a new organization with a new service-profile
-# # in the ChirpStack Application Server.
-# service_profile_id="1f32476e-a112-4f00-bcc7-4aab4bfefa1d"
-#
-# # Duration.
-# #
-# # This defines the duration of the simulation. If set to '0s', the simulation
-# # will run until terminated.
-# duration="5m"
-#
-#   # Device configuration.
-#   [simulator.device]
-#
-#   # Number of devices to simulate.
-#   count=1000
-#
-#   # Uplink interval.
-#   uplink_interval="5m"
-#
-#   # FPort.
-#   f_port=10
-#
-#   # Payload (HEX encoded).
-#   payload="010203"
-#
-#   # Gateway configuration.
-#   [simulator.gateway]
-#
-#   # Min number of receiving gateways.
-#   min_count=3
-#
-#   # Max number of receiving gateways.
-#   max_count=5
+# This defines the duration of the simulation. If set to '0s', the simulation
+# will run until terminated.
+duration="5m"
+
+  # Device configuration.
+  [simulator.device]
+
+  # Number of devices to simulate.
+  count=1000
+
+  # Uplink interval.
+  uplink_interval="5m"
+
+  # FPort.
+  f_port=10
+
+  # Payload (HEX encoded).
+  payload="010203"
+
+  # Gateway configuration.
+  [simulator.gateway]
+
+  # Min number of receiving gateways.
+  min_count=3
+
+  # Max number of receiving gateways.
+  max_count=5
 
 
 # Prometheus metrics configuration.
