@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/brocaar/chirpstack-api/go/v3/common"
 	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/brocaar/lorawan"
-	"github.com/pkg/errors"
 )
 
 type deviceState int
@@ -21,56 +21,122 @@ const (
 	deviceStateActivated
 )
 
-// Device defines a device.
+// Device contains the state of a simulated LoRaWAN OTAA device (1.0.x).
 type Device struct {
 	sync.RWMutex
 
+	// Context to cancel device.
 	ctx context.Context
-	wg  *sync.WaitGroup
 
-	devEUI         lorawan.EUI64
-	joinEUI        lorawan.EUI64
-	appKey         lorawan.AES128Key
+	// Waitgroup to wait until simulation has been fully cancelled.
+	wg *sync.WaitGroup
+
+	// DevEUI.
+	devEUI lorawan.EUI64
+
+	// JoinEUI.
+	joinEUI lorawan.EUI64
+
+	// AppKey.
+	appKey lorawan.AES128Key
+
+	// Interval in which device sends uplinks.
 	uplinkInterval time.Duration
-	payload        []byte
-	fPort          uint8
 
-	devAddr  lorawan.DevAddr
+	// Payload (plaintext) which the device sends as uplink.
+	payload []byte
+
+	// FPort used for sending uplinks.
+	fPort uint8
+
+	// Assigned device address.
+	devAddr lorawan.DevAddr
+
+	// DevNonce.
 	devNonce lorawan.DevNonce
-	fCntUp   uint32
-	fCntDown uint32
-	appSKey  lorawan.AES128Key
-	nwkSKey  lorawan.AES128Key
 
+	// Uplink frame-counter.
+	fCntUp uint32
+
+	// Downlink frame-counter.
+	fCntDown uint32
+
+	// Application session-key.
+	appSKey lorawan.AES128Key
+
+	// Network session-key.
+	nwkSKey lorawan.AES128Key
+
+	// Activation state.
 	state deviceState
 
+	// Downlink frames channel (used by the gateway). Note that the gateway
+	// forwards downlink frames to all associated devices, as only the device
+	// is able to validate the addressee.
 	downlinkFrames chan gw.DownlinkFrame
-	gateways       []*Gateway
+
+	// The associated gateway through which the device simulates its uplinks.
+	gateways []*Gateway
 }
 
-// NewDevice creates a new device.
-func NewDevice(ctx context.Context, wg *sync.WaitGroup, devEUI lorawan.EUI64, appKey lorawan.AES128Key, interval time.Duration, fPort uint8, payload []byte, gateways []*Gateway) (*Device, error) {
-	log.WithFields(log.Fields{
-		"dev_eui": devEUI,
-	}).Info("simulator: new otaa device")
+// WithAppKey sets the AppKey.
+func WithAppKey(appKey lorawan.AES128Key) func(*Device) {
+	return func(d *Device) {
+		d.appKey = appKey
+	}
+}
 
+// WithDevEUI sets the DevEUI.
+func WithDevEUI(devEUI lorawan.EUI64) func(*Device) {
+	return func(d *Device) {
+		d.devEUI = devEUI
+	}
+}
+
+// WithUplinkInterval sets the uplink interval.
+func WithUplinkInterval(interval time.Duration) func(*Device) {
+	return func(d *Device) {
+		d.uplinkInterval = interval
+	}
+}
+
+// WithUplinkPayload sets the uplink payload.
+func WithUplinkPayload(fPort uint8, pl []byte) func(*Device) {
+	return func(d *Device) {
+		d.fPort = fPort
+		d.payload = pl
+	}
+}
+
+// WithGateways adds the device to the given gateways.
+// Use this function after WithDevEUI!
+func WithGateways(gws []*Gateway) func(*Device) {
+	return func(d *Device) {
+		d.gateways = gws
+
+		for i := range d.gateways {
+			d.gateways[i].AddDevice(d.devEUI, d.downlinkFrames)
+		}
+	}
+}
+
+// NewDevice creates a new device simulation.
+func NewDevice(ctx context.Context, wg *sync.WaitGroup, opts ...func(*Device)) (*Device, error) {
 	d := &Device{
-		ctx:            ctx,
-		wg:             wg,
-		devEUI:         devEUI,
-		appKey:         appKey,
-		uplinkInterval: interval,
-		payload:        payload,
-		fPort:          fPort,
+		ctx: ctx,
+		wg:  wg,
 
-		gateways:       gateways,
 		downlinkFrames: make(chan gw.DownlinkFrame, 100),
 		state:          deviceStateOTAA,
 	}
 
-	for i := range d.gateways {
-		d.gateways[i].AddDevice(d.devEUI, d.downlinkFrames)
+	for _, o := range opts {
+		o(d)
 	}
+
+	log.WithFields(log.Fields{
+		"dev_eui": d.devEUI,
+	}).Info("simulator: new otaa device")
 
 	wg.Add(2)
 
@@ -80,6 +146,8 @@ func NewDevice(ctx context.Context, wg *sync.WaitGroup, devEUI lorawan.EUI64, ap
 	return d, nil
 }
 
+// uplinkLoop first handle the OTAA activation, after which it will periodically
+// sends an uplink with the configured payload and fport.
 func (d *Device) uplinkLoop() {
 	defer d.wg.Done()
 
@@ -103,6 +171,9 @@ func (d *Device) uplinkLoop() {
 	}
 }
 
+// downlinkLoop handles the downlink messages.
+// Note: as a gateway does not know the addressee of the downlink, it is up to
+// the handling functions to validate the MIC etc..
 func (d *Device) downlinkLoop() {
 	defer d.wg.Done()
 
@@ -134,6 +205,7 @@ func (d *Device) downlinkLoop() {
 	}
 }
 
+// joinRequest sends the join-request.
 func (d *Device) joinRequest() {
 	log.WithFields(log.Fields{
 		"dev_eui": d.devEUI,
@@ -161,6 +233,7 @@ func (d *Device) joinRequest() {
 	deviceJoinRequestCounter().Inc()
 }
 
+// unconfirmedDataUp sends an unconfirmed data uplink.
 func (d *Device) unconfirmedDataUp() {
 	log.WithFields(log.Fields{
 		"dev_eui":  d.devEUI,
@@ -206,6 +279,7 @@ func (d *Device) unconfirmedDataUp() {
 	deviceUplinkCounter().Inc()
 }
 
+// joinAccept validates and handles the join-accept downlink.
 func (d *Device) joinAccept(phy lorawan.PHYPayload) error {
 	err := phy.DecryptJoinAcceptPayload(d.appKey)
 	if err != nil {
@@ -254,25 +328,7 @@ func (d *Device) joinAccept(phy lorawan.PHYPayload) error {
 	return nil
 }
 
-func (d *Device) getDevNonce() lorawan.DevNonce {
-	d.devNonce++
-	return d.devNonce
-}
-
-func (d *Device) getState() deviceState {
-	d.RLock()
-	defer d.RUnlock()
-
-	return d.state
-}
-
-func (d *Device) setState(s deviceState) {
-	d.Lock()
-	d.Unlock()
-
-	d.state = s
-}
-
+// sendUplink sends
 func (d *Device) sendUplink(phy lorawan.PHYPayload) error {
 	b, err := phy.MarshalBinary()
 	if err != nil {
@@ -305,4 +361,26 @@ func (d *Device) sendUplink(phy lorawan.PHYPayload) error {
 	}
 
 	return nil
+}
+
+// getDevNonce increments and returns a LoRaWAN DevNonce.
+func (d *Device) getDevNonce() lorawan.DevNonce {
+	d.devNonce++
+	return d.devNonce
+}
+
+// getState returns the current device state.
+func (d *Device) getState() deviceState {
+	d.RLock()
+	defer d.RUnlock()
+
+	return d.state
+}
+
+// setState sets the device to the given state.
+func (d *Device) setState(s deviceState) {
+	d.Lock()
+	d.Unlock()
+
+	d.state = s
 }

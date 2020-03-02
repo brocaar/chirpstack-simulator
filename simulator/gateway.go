@@ -15,7 +15,7 @@ import (
 	"github.com/brocaar/lorawan"
 )
 
-// Gateay defines a gateway.
+// Gateway defines a simulated LoRa gateway.
 type Gateway struct {
 	mqtt      mqtt.Client
 	gatewayID lorawan.EUI64
@@ -24,22 +24,39 @@ type Gateway struct {
 	devices   map[lorawan.EUI64]chan gw.DownlinkFrame
 }
 
-// NewGateway creates a new gateway.
-func NewGateway(gatewayID lorawan.EUI64, mqttClient mqtt.Client) (*Gateway, error) {
+// WithMQTTClient sets the MQTT client for the gateway.
+func WithMQTTClient(client mqtt.Client) func(*Gateway) {
+	return func(g *Gateway) {
+		g.mqtt = client
+	}
+}
+
+// WithGatewayID sets the gateway ID.
+func WithGatewayID(gatewayID lorawan.EUI64) func(*Gateway) {
+	return func(g *Gateway) {
+		g.gatewayID = gatewayID
+	}
+}
+
+// NewGateway creates a new gateway, using the given MQTT client for sending
+// and receiving.
+func NewGateway(opts ...func(*Gateway)) (*Gateway, error) {
 	gw := &Gateway{
-		mqtt:      mqttClient,
-		gatewayID: gatewayID,
-		devices:   make(map[lorawan.EUI64]chan gw.DownlinkFrame),
+		devices: make(map[lorawan.EUI64]chan gw.DownlinkFrame),
+	}
+
+	for _, o := range opts {
+		o(gw)
 	}
 
 	log.WithFields(log.Fields{
-		"gateway_id": gatewayID,
+		"gateway_id": gw.gatewayID,
 		"topic":      gw.getDownlinkTopic(),
 	}).Info("simulator: subscribing to gateway mqtt topic")
 	for {
 		if token := gw.mqtt.Subscribe(gw.getDownlinkTopic(), 0, gw.downlinkEventHandler); token.Wait() && token.Error() != nil {
 			log.WithError(token.Error()).WithFields(log.Fields{
-				"gateway_id": gatewayID,
+				"gateway_id": gw.gatewayID,
 				"topic":      gw.getDownlinkTopic(),
 			}).Error("simulator: subscribe to mqtt topic error")
 			time.Sleep(time.Second * 2)
@@ -51,7 +68,7 @@ func NewGateway(gatewayID lorawan.EUI64, mqttClient mqtt.Client) (*Gateway, erro
 	return gw, nil
 }
 
-// SendUplinkFraome sends the given uplink frame.
+// SendUplinkFrame sends the given uplink frame.
 func (g *Gateway) SendUplinkFrame(pl gw.UplinkFrame) error {
 	uplinkID, err := uuid.NewV4()
 	if err != nil {
@@ -84,7 +101,9 @@ func (g *Gateway) SendUplinkFrame(pl gw.UplinkFrame) error {
 	return nil
 }
 
-// AddDevice adds the given device as a gateway subscriber.
+// AddDevice adds the given device to the 'coverage' of the gateway.
+// This means that any downlink sent to the gateway will be forwarded to added
+// devices (which will each validate the DevAddr and MIC).
 func (g *Gateway) AddDevice(devEUI lorawan.EUI64, c chan gw.DownlinkFrame) {
 	g.deviceMux.Lock()
 	defer g.deviceMux.Unlock()
@@ -97,7 +116,7 @@ func (g *Gateway) AddDevice(devEUI lorawan.EUI64, c chan gw.DownlinkFrame) {
 	g.devices[devEUI] = c
 }
 
-// RemoveDevice removes the given device.
+// RemoveDevice removes the given device from the gateway 'coverage'.
 func (g *Gateway) RemoveDevice(devEUI lorawan.EUI64) {
 	g.deviceMux.Lock()
 	defer g.deviceMux.Unlock()

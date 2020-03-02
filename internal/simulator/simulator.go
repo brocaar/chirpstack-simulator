@@ -22,6 +22,7 @@ import (
 	"github.com/brocaar/chirpstack-simulator/internal/as"
 	"github.com/brocaar/chirpstack-simulator/internal/config"
 	"github.com/brocaar/chirpstack-simulator/internal/ns"
+	"github.com/brocaar/chirpstack-simulator/simulator"
 	"github.com/brocaar/lorawan"
 )
 
@@ -159,11 +160,14 @@ func (s *simulation) tearDown() error {
 }
 
 func (s *simulation) runSimulation() error {
-	var gateways []*Gateway
-	var devices []*Device
+	var gateways []*simulator.Gateway
+	var devices []*simulator.Device
 
 	for _, gatewayID := range s.gatewayIDs {
-		gw, err := NewGateway(gatewayID, ns.Client())
+		gw, err := simulator.NewGateway(
+			simulator.WithGatewayID(gatewayID),
+			simulator.WithMQTTClient(ns.Client()),
+		)
 		if err != nil {
 			return errors.Wrap(err, "new gateway error")
 		}
@@ -178,7 +182,7 @@ func (s *simulation) runSimulation() error {
 	defer cancel()
 
 	for devEUI, appKey := range s.deviceAppKeys {
-		devGateways := make(map[int]*Gateway)
+		devGateways := make(map[int]*simulator.Gateway)
 		devNumGateways := s.gatewayMinCount + mrand.Intn(s.gatewayMaxCount-s.gatewayMinCount+1)
 
 		for len(devGateways) < devNumGateways {
@@ -187,12 +191,18 @@ func (s *simulation) runSimulation() error {
 			devGateways[n] = gateways[n]
 		}
 
-		var gws []*Gateway
+		var gws []*simulator.Gateway
 		for k := range devGateways {
 			gws = append(gws, devGateways[k])
 		}
 
-		d, err := NewDevice(ctx, &wg, devEUI, appKey, s.uplinkInterval, s.fPort, s.payload, gws)
+		d, err := simulator.NewDevice(ctx, &wg,
+			simulator.WithDevEUI(devEUI),
+			simulator.WithAppKey(appKey),
+			simulator.WithUplinkInterval(s.uplinkInterval),
+			simulator.WithUplinkPayload(s.fPort, s.payload),
+			simulator.WithGateways(gws),
+		)
 		if err != nil {
 			return errors.Wrap(err, "new device error")
 		}
