@@ -35,6 +35,31 @@ func WithMQTTClient(client mqtt.Client) GatewayOption {
 	}
 }
 
+// WithMQTTCredentials initializes a new MQTT client with the given credentials.
+func WithMQTTCredentials(server, username, password string) GatewayOption {
+	return func(g *Gateway) error {
+		opts := mqtt.NewClientOptions()
+		opts.AddBroker(server)
+		opts.SetUsername(username)
+		opts.SetPassword(password)
+		opts.SetCleanSession(true)
+		opts.SetAutoReconnect(true)
+
+		log.WithFields(log.Fields{
+			"server": server,
+		}).Info("simulator: connecting to mqtt broker")
+
+		client := mqtt.NewClient(opts)
+		if token := client.Connect(); token.Wait() && token.Error() != nil {
+			return errors.Wrap(token.Error(), "mqtt client connect error")
+		}
+
+		g.mqtt = client
+
+		return nil
+	}
+}
+
 // WithGatewayID sets the gateway ID.
 func WithGatewayID(gatewayID lorawan.EUI64) GatewayOption {
 	return func(g *Gateway) error {
