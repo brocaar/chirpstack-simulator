@@ -115,7 +115,7 @@ func WithGateways(gws []*Gateway) func(*Device) {
 		d.gateways = gws
 
 		for i := range d.gateways {
-			d.gateways[i].AddDevice(d.devEUI, d.downlinkFrames)
+			d.gateways[i].addDevice(d.devEUI, d.downlinkFrames)
 		}
 	}
 }

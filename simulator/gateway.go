@@ -101,10 +101,10 @@ func (g *Gateway) SendUplinkFrame(pl gw.UplinkFrame) error {
 	return nil
 }
 
-// AddDevice adds the given device to the 'coverage' of the gateway.
+// addDevice adds the given device to the 'coverage' of the gateway.
 // This means that any downlink sent to the gateway will be forwarded to added
 // devices (which will each validate the DevAddr and MIC).
-func (g *Gateway) AddDevice(devEUI lorawan.EUI64, c chan gw.DownlinkFrame) {
+func (g *Gateway) addDevice(devEUI lorawan.EUI64, c chan gw.DownlinkFrame) {
 	g.deviceMux.Lock()
 	defer g.deviceMux.Unlock()
 
@@ -114,14 +114,6 @@ func (g *Gateway) AddDevice(devEUI lorawan.EUI64, c chan gw.DownlinkFrame) {
 	}).Info("simulator: add device to gateway")
 
 	g.devices[devEUI] = c
-}
-
-// RemoveDevice removes the given device from the gateway 'coverage'.
-func (g *Gateway) RemoveDevice(devEUI lorawan.EUI64) {
-	g.deviceMux.Lock()
-	defer g.deviceMux.Unlock()
-
-	delete(g.devices, devEUI)
 }
 
 func (g *Gateway) getUplinkTopic() string {
