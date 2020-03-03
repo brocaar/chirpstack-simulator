@@ -14,6 +14,9 @@ import (
 	"github.com/brocaar/lorawan"
 )
 
+// DeviceOption is the interface for a device option.
+type DeviceOption func(*Device) error
+
 type deviceState int
 
 const (
@@ -80,48 +83,53 @@ type Device struct {
 }
 
 // WithAppKey sets the AppKey.
-func WithAppKey(appKey lorawan.AES128Key) func(*Device) {
-	return func(d *Device) {
+func WithAppKey(appKey lorawan.AES128Key) DeviceOption {
+	return func(d *Device) error {
 		d.appKey = appKey
+		return nil
 	}
 }
 
 // WithDevEUI sets the DevEUI.
-func WithDevEUI(devEUI lorawan.EUI64) func(*Device) {
-	return func(d *Device) {
+func WithDevEUI(devEUI lorawan.EUI64) DeviceOption {
+	return func(d *Device) error {
 		d.devEUI = devEUI
+		return nil
 	}
 }
 
 // WithUplinkInterval sets the uplink interval.
-func WithUplinkInterval(interval time.Duration) func(*Device) {
-	return func(d *Device) {
+func WithUplinkInterval(interval time.Duration) DeviceOption {
+	return func(d *Device) error {
 		d.uplinkInterval = interval
+		return nil
 	}
 }
 
 // WithUplinkPayload sets the uplink payload.
-func WithUplinkPayload(fPort uint8, pl []byte) func(*Device) {
-	return func(d *Device) {
+func WithUplinkPayload(fPort uint8, pl []byte) DeviceOption {
+	return func(d *Device) error {
 		d.fPort = fPort
 		d.payload = pl
+		return nil
 	}
 }
 
 // WithGateways adds the device to the given gateways.
 // Use this function after WithDevEUI!
-func WithGateways(gws []*Gateway) func(*Device) {
-	return func(d *Device) {
+func WithGateways(gws []*Gateway) DeviceOption {
+	return func(d *Device) error {
 		d.gateways = gws
 
 		for i := range d.gateways {
 			d.gateways[i].addDevice(d.devEUI, d.downlinkFrames)
 		}
+		return nil
 	}
 }
 
 // NewDevice creates a new device simulation.
-func NewDevice(ctx context.Context, wg *sync.WaitGroup, opts ...func(*Device)) (*Device, error) {
+func NewDevice(ctx context.Context, wg *sync.WaitGroup, opts ...DeviceOption) (*Device, error) {
 	d := &Device{
 		ctx: ctx,
 		wg:  wg,
@@ -131,7 +139,9 @@ func NewDevice(ctx context.Context, wg *sync.WaitGroup, opts ...func(*Device)) (
 	}
 
 	for _, o := range opts {
-		o(d)
+		if err := o(d); err != nil {
+			return nil, err
+		}
 	}
 
 	log.WithFields(log.Fields{

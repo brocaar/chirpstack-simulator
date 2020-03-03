@@ -15,6 +15,9 @@ import (
 	"github.com/brocaar/lorawan"
 )
 
+// GatewayOption is the interface for a gateway option.
+type GatewayOption func(*Gateway) error
+
 // Gateway defines a simulated LoRa gateway.
 type Gateway struct {
 	mqtt      mqtt.Client
@@ -25,28 +28,32 @@ type Gateway struct {
 }
 
 // WithMQTTClient sets the MQTT client for the gateway.
-func WithMQTTClient(client mqtt.Client) func(*Gateway) {
-	return func(g *Gateway) {
+func WithMQTTClient(client mqtt.Client) GatewayOption {
+	return func(g *Gateway) error {
 		g.mqtt = client
+		return nil
 	}
 }
 
 // WithGatewayID sets the gateway ID.
-func WithGatewayID(gatewayID lorawan.EUI64) func(*Gateway) {
-	return func(g *Gateway) {
+func WithGatewayID(gatewayID lorawan.EUI64) GatewayOption {
+	return func(g *Gateway) error {
 		g.gatewayID = gatewayID
+		return nil
 	}
 }
 
 // NewGateway creates a new gateway, using the given MQTT client for sending
 // and receiving.
-func NewGateway(opts ...func(*Gateway)) (*Gateway, error) {
+func NewGateway(opts ...GatewayOption) (*Gateway, error) {
 	gw := &Gateway{
 		devices: make(map[lorawan.EUI64]chan gw.DownlinkFrame),
 	}
 
 	for _, o := range opts {
-		o(gw)
+		if err := o(gw); err != nil {
+			return nil, err
+		}
 	}
 
 	log.WithFields(log.Fields{
