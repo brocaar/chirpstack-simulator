@@ -25,6 +25,9 @@ type Gateway struct {
 
 	deviceMux sync.RWMutex
 	devices   map[lorawan.EUI64]chan gw.DownlinkFrame
+
+	downlinkTxNAckRate int
+	downlinkTxCounter  int
 }
 
 // WithMQTTClient sets the MQTT client for the gateway.
@@ -64,6 +67,20 @@ func WithMQTTCredentials(server, username, password string) GatewayOption {
 func WithGatewayID(gatewayID lorawan.EUI64) GatewayOption {
 	return func(g *Gateway) error {
 		g.gatewayID = gatewayID
+		return nil
+	}
+}
+
+// WithDownlinkTxNackRate sets the rate in which Tx NAck messages are sent.
+// Setting this to:
+//   0: always ACK
+//   1: NAck every message
+//   2: NAck every other message
+//   3: NAck every third message
+//   ...
+func WithDownlinkTxNackRate(rate int) GatewayOption {
+	return func(g *Gateway) error {
+		g.downlinkTxNAckRate = rate
 		return nil
 	}
 }
@@ -204,10 +221,18 @@ func (g *Gateway) downlinkEventHandler(c mqtt.Client, msg mqtt.Message) {
 		downChan <- pl
 	}
 
+	ackError := ""
+	g.downlinkTxCounter++
+	if g.downlinkTxCounter == g.downlinkTxNAckRate {
+		ackError = "COLLISION_PACKET"
+		g.downlinkTxCounter = 0
+	}
+
 	if err := g.sendDownlinkTxAck(gw.DownlinkTXAck{
 		GatewayId:  g.gatewayID[:],
 		Token:      pl.Token,
 		DownlinkId: pl.DownlinkId,
+		Error:      ackError,
 	}); err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"gateway_id": g.gatewayID,
