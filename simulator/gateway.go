@@ -124,11 +124,31 @@ func (g *Gateway) SendUplinkFrame(pl gw.UplinkFrame) error {
 		"gateway_id": g.gatewayID,
 		"topic":      g.getUplinkTopic(),
 	}).Debug("simulator: publish uplink frame")
+
 	if token := g.mqtt.Publish(g.getUplinkTopic(), 0, false, b); token.Wait() && token.Error() != nil {
 		return errors.Wrap(err, "simulator: publish uplink frame error")
 	}
 
 	gatewayUplinkCounter().Inc()
+
+	return nil
+}
+
+// sendDownlinkTxAck sends the given downlink Ack.
+func (g *Gateway) sendDownlinkTxAck(pl gw.DownlinkTXAck) error {
+	b, err := proto.Marshal(&pl)
+	if err != nil {
+		return errors.Wrap(err, "send tx ack error")
+	}
+
+	log.WithFields(log.Fields{
+		"gateway_id": g.gatewayID,
+		"topic":      g.getDownlinkTxAckTopic(),
+	}).Debug("simulator: publish downlink tx ack")
+
+	if token := g.mqtt.Publish(g.getDownlinkTxAckTopic(), 0, false, b); token.Wait() && token.Error() != nil {
+		return errors.Wrap(err, "simulator: publish downlink tx ack error")
+	}
 
 	return nil
 }
@@ -156,6 +176,10 @@ func (g *Gateway) getDownlinkTopic() string {
 	return fmt.Sprintf("gateway/%s/command/down", g.gatewayID)
 }
 
+func (g *Gateway) getDownlinkTxAckTopic() string {
+	return fmt.Sprintf("gateway/%s/event/ack", g.gatewayID)
+}
+
 func (g *Gateway) downlinkEventHandler(c mqtt.Client, msg mqtt.Message) {
 	g.deviceMux.RLock()
 	defer g.deviceMux.RUnlock()
@@ -178,5 +202,15 @@ func (g *Gateway) downlinkEventHandler(c mqtt.Client, msg mqtt.Message) {
 			"gateway_id": g.gatewayID,
 		}).Debug("simulator: forwarding downlink to device")
 		downChan <- pl
+	}
+
+	if err := g.sendDownlinkTxAck(gw.DownlinkTXAck{
+		GatewayId:  g.gatewayID[:],
+		Token:      pl.Token,
+		DownlinkId: pl.DownlinkId,
+	}); err != nil {
+		log.WithError(err).WithFields(log.Fields{
+			"gateway_id": g.gatewayID,
+		}).Error("simulator: send downlink tx ack error")
 	}
 }
