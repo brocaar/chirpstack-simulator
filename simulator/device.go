@@ -2,6 +2,8 @@ package simulator
 
 import (
 	"context"
+	crand "crypto/rand"
+	"encoding/binary"
 	"math/rand"
 	"sync"
 	"time"
@@ -31,6 +33,9 @@ type Device struct {
 	// Context to cancel device.
 	ctx context.Context
 
+	// Cancel function.
+	cancel context.CancelFunc
+
 	// Waitgroup to wait until simulation has been fully cancelled.
 	wg *sync.WaitGroup
 
@@ -45,6 +50,9 @@ type Device struct {
 
 	// Interval in which device sends uplinks.
 	uplinkInterval time.Duration
+
+	// Total number of uplinks to send, before terminating.
+	uplinkCount uint32
 
 	// Payload (plaintext) which the device sends as uplink.
 	payload []byte
@@ -80,6 +88,9 @@ type Device struct {
 
 	// The associated gateway through which the device simulates its uplinks.
 	gateways []*Gateway
+
+	// Random DevNonce
+	randomDevNonce bool
 }
 
 // WithAppKey sets the AppKey.
@@ -106,6 +117,15 @@ func WithUplinkInterval(interval time.Duration) DeviceOption {
 	}
 }
 
+// WithUplinkCount sets the uplink count, after which the device simulation
+// ends.
+func WithUplinkCount(count uint32) DeviceOption {
+	return func(d *Device) error {
+		d.uplinkCount = count
+		return nil
+	}
+}
+
 // WithUplinkPayload sets the uplink payload.
 func WithUplinkPayload(fPort uint8, pl []byte) DeviceOption {
 	return func(d *Device) error {
@@ -128,11 +148,22 @@ func WithGateways(gws []*Gateway) DeviceOption {
 	}
 }
 
+// WithRandomDevNonce randomizes the OTAA DevNonce instead of using a counter value.
+func WithRandomDevNonce() DeviceOption {
+	return func(d *Device) error {
+		d.randomDevNonce = true
+		return nil
+	}
+}
+
 // NewDevice creates a new device simulation.
 func NewDevice(ctx context.Context, wg *sync.WaitGroup, opts ...DeviceOption) (*Device, error) {
+	ctx, cancel := context.WithCancel(ctx)
+
 	d := &Device{
-		ctx: ctx,
-		wg:  wg,
+		ctx:    ctx,
+		cancel: cancel,
+		wg:     wg,
 
 		downlinkFrames: make(chan gw.DownlinkFrame, 100),
 		state:          deviceStateOTAA,
@@ -159,6 +190,7 @@ func NewDevice(ctx context.Context, wg *sync.WaitGroup, opts ...DeviceOption) (*
 // uplinkLoop first handle the OTAA activation, after which it will periodically
 // sends an uplink with the configured payload and fport.
 func (d *Device) uplinkLoop() {
+	defer d.cancel()
 	defer d.wg.Done()
 
 	var cancelled bool
@@ -176,6 +208,14 @@ func (d *Device) uplinkLoop() {
 			time.Sleep(6 * time.Second)
 		case deviceStateActivated:
 			d.unconfirmedDataUp()
+
+			if d.uplinkCount != 0 {
+				if d.fCntUp >= d.uplinkCount {
+					d.cancel()
+					return
+				}
+			}
+
 			time.Sleep(d.uplinkInterval)
 		}
 	}
@@ -185,6 +225,7 @@ func (d *Device) uplinkLoop() {
 // Note: as a gateway does not know the addressee of the downlink, it is up to
 // the handling functions to validate the MIC etc..
 func (d *Device) downlinkLoop() {
+	defer d.cancel()
 	defer d.wg.Done()
 
 	for {
@@ -375,7 +416,15 @@ func (d *Device) sendUplink(phy lorawan.PHYPayload) error {
 
 // getDevNonce increments and returns a LoRaWAN DevNonce.
 func (d *Device) getDevNonce() lorawan.DevNonce {
-	d.devNonce++
+	if d.randomDevNonce {
+		b := make([]byte, 2)
+		_, _ = crand.Read(b)
+
+		d.devNonce = lorawan.DevNonce(binary.BigEndian.Uint16(b))
+	} else {
+		d.devNonce++
+	}
+
 	return d.devNonce
 }
 
