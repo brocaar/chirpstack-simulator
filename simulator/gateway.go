@@ -28,6 +28,7 @@ type Gateway struct {
 
 	downlinkTxNAckRate int
 	downlinkTxCounter  int
+	downlinkTxAckDelay time.Duration
 }
 
 // WithMQTTClient sets the MQTT client for the gateway.
@@ -81,6 +82,14 @@ func WithGatewayID(gatewayID lorawan.EUI64) GatewayOption {
 func WithDownlinkTxNackRate(rate int) GatewayOption {
 	return func(g *Gateway) error {
 		g.downlinkTxNAckRate = rate
+		return nil
+	}
+}
+
+// WithDownlinkTxAckDelay sets the delay in which the Tx Ack is returned.
+func WithDownlinkTxAckDelay(d time.Duration) GatewayOption {
+	return func(g *Gateway) error {
+		g.downlinkTxAckDelay = d
 		return nil
 	}
 }
@@ -161,6 +170,7 @@ func (g *Gateway) sendDownlinkTxAck(pl gw.DownlinkTXAck) error {
 	log.WithFields(log.Fields{
 		"gateway_id": g.gatewayID,
 		"topic":      g.getDownlinkTxAckTopic(),
+		"error":      pl.Error,
 	}).Debug("simulator: publish downlink tx ack")
 
 	if token := g.mqtt.Publish(g.getDownlinkTxAckTopic(), 0, false, b); token.Wait() && token.Error() != nil {
@@ -220,6 +230,8 @@ func (g *Gateway) downlinkEventHandler(c mqtt.Client, msg mqtt.Message) {
 		}).Debug("simulator: forwarding downlink to device")
 		downChan <- pl
 	}
+
+	time.Sleep(g.downlinkTxAckDelay)
 
 	ackError := ""
 	g.downlinkTxCounter++
