@@ -11,7 +11,6 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/brocaar/chirpstack-api/go/v3/common"
 	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/brocaar/lorawan"
 )
@@ -91,6 +90,9 @@ type Device struct {
 
 	// Random DevNonce
 	randomDevNonce bool
+
+	// TXInfo for uplink
+	uplinkTXInfo gw.UplinkTXInfo
 }
 
 // WithAppKey sets the AppKey.
@@ -152,6 +154,14 @@ func WithGateways(gws []*Gateway) DeviceOption {
 func WithRandomDevNonce() DeviceOption {
 	return func(d *Device) error {
 		d.randomDevNonce = true
+		return nil
+	}
+}
+
+// WithUplinkTXInfo sets the TXInfo used for simulating the uplinks.
+func WithUplinkTXInfo(txInfo gw.UplinkTXInfo) DeviceOption {
+	return func(d *Device) error {
+		d.uplinkTXInfo = txInfo
 		return nil
 	}
 }
@@ -386,21 +396,9 @@ func (d *Device) sendUplink(phy lorawan.PHYPayload) error {
 		return errors.Wrap(err, "marshal phypayload error")
 	}
 
-	txInfo := gw.UplinkTXInfo{
-		Frequency:  868100000,
-		Modulation: common.Modulation_LORA,
-		ModulationInfo: &gw.UplinkTXInfo_LoraModulationInfo{
-			LoraModulationInfo: &gw.LoRaModulationInfo{
-				Bandwidth:       125,
-				SpreadingFactor: 7,
-				CodeRate:        "3/4",
-			},
-		},
-	}
-
 	pl := gw.UplinkFrame{
 		PhyPayload: b,
-		TxInfo:     &txInfo,
+		TxInfo:     &d.uplinkTXInfo,
 	}
 
 	for i := range d.gateways {

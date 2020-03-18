@@ -46,10 +46,13 @@ type Config struct {
 		Duration         time.Duration `mapstructure:"duration"`
 
 		Device struct {
-			Count          int           `mapstructure:"count"`
-			UplinkInterval time.Duration `mapstructure:"uplink_interval"`
-			FPort          uint8         `mapstructure:"f_port"`
-			Payload        string        `mapstructure:"payload"`
+			Count           int           `mapstructure:"count"`
+			UplinkInterval  time.Duration `mapstructure:"uplink_interval"`
+			FPort           uint8         `mapstructure:"f_port"`
+			Payload         string        `mapstructure:"payload"`
+			Frequency       int           `mapstructure:"frequency"`
+			Bandwidth       int           `mapstructure:"bandwidth"`
+			SpreadingFactor int           `mapstructure:"spreading_factor"`
 		} `mapstructure:"device"`
 
 		Gateway struct {

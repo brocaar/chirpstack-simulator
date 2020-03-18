@@ -19,6 +19,7 @@ import (
 
 	"github.com/brocaar/chirpstack-api/go/v3/as/external/api"
 	"github.com/brocaar/chirpstack-api/go/v3/common"
+	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/brocaar/chirpstack-simulator/internal/as"
 	"github.com/brocaar/chirpstack-simulator/internal/config"
 	"github.com/brocaar/chirpstack-simulator/internal/ns"
@@ -53,6 +54,9 @@ func Start(ctx context.Context, wg *sync.WaitGroup, c config.Config) error {
 			uplinkInterval:   c.Device.UplinkInterval,
 			fPort:            c.Device.FPort,
 			payload:          pl,
+			frequency:        c.Device.Frequency,
+			bandwidth:        c.Device.Bandwidth / 1000,
+			spreadingFactor:  c.Device.SpreadingFactor,
 			duration:         c.Duration,
 			gatewayMinCount:  c.Gateway.MinCount,
 			gatewayMaxCount:  c.Gateway.MaxCount,
@@ -74,9 +78,12 @@ type simulation struct {
 	gatewayMaxCount  int
 	duration         time.Duration
 
-	fPort          uint8
-	payload        []byte
-	uplinkInterval time.Duration
+	fPort           uint8
+	payload         []byte
+	uplinkInterval  time.Duration
+	frequency       int
+	bandwidth       int
+	spreadingFactor int
 
 	serviceProfile  *api.ServiceProfile
 	deviceProfileID uuid.UUID
@@ -202,6 +209,17 @@ func (s *simulation) runSimulation() error {
 			simulator.WithUplinkInterval(s.uplinkInterval),
 			simulator.WithUplinkPayload(s.fPort, s.payload),
 			simulator.WithGateways(gws),
+			simulator.WithUplinkTXInfo(gw.UplinkTXInfo{
+				Frequency:  uint32(s.frequency),
+				Modulation: common.Modulation_LORA,
+				ModulationInfo: &gw.UplinkTXInfo_LoraModulationInfo{
+					LoraModulationInfo: &gw.LoRaModulationInfo{
+						Bandwidth:       uint32(s.bandwidth),
+						SpreadingFactor: uint32(s.spreadingFactor),
+						CodeRate:        "3/4",
+					},
+				},
+			}),
 		)
 		if err != nil {
 			return errors.Wrap(err, "new device error")

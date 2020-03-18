@@ -117,6 +117,15 @@ log_level={{ .General.LogLevel }}
 #   # Payload (HEX encoded).
 #   payload="010203"
 #
+#   # Frequency (Hz).
+#   frequency=868100000
+#
+#   # Bandwidth (Hz).
+#   bandwidth=125000
+#
+#   # Spreading-factor.
+#   spreading_factor=7
+#
 #   # Gateway configuration.
 #   [simulator.gateway]
 #
@@ -135,6 +144,9 @@ duration="{{ $element.Duration }}"
   uplink_interval="{{ $element.Device.UplinkInterval }}"
   f_port="{{ $element.Device.FPort }}"
   payload="{{ $element.Device.Payload }}"
+  frequency={{ $element.Device.Frequency }}
+  bandwidth={{ $element.Device.Bandwidth }}
+  spreading_factor={{ $element.Device.SpreadingFactor }}
 
   [simulator.gateway]
   min_count={{ $element.Gateway.MinCount }}

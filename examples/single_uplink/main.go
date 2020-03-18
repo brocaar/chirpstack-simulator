@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/brocaar/chirpstack-api/go/v3/common"
+	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/brocaar/chirpstack-simulator/simulator"
 	"github.com/brocaar/lorawan"
 )
@@ -19,7 +21,7 @@ func main() {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	gw, err := simulator.NewGateway(
+	sgw, err := simulator.NewGateway(
 		simulator.WithMQTTCredentials("localhost:1883", "", ""),
 		simulator.WithGatewayID(gatewayID),
 	)
@@ -34,7 +36,18 @@ func main() {
 		simulator.WithUplinkInterval(time.Second),
 		simulator.WithUplinkCount(1),
 		simulator.WithUplinkPayload(10, []byte{1, 2, 3}),
-		simulator.WithGateways([]*simulator.Gateway{gw}),
+		simulator.WithUplinkTXInfo(gw.UplinkTXInfo{
+			Frequency:  868100000,
+			Modulation: common.Modulation_LORA,
+			ModulationInfo: &gw.UplinkTXInfo_LoraModulationInfo{
+				LoraModulationInfo: &gw.LoRaModulationInfo{
+					Bandwidth:       125,
+					SpreadingFactor: 7,
+					CodeRate:        "3/4",
+				},
+			},
+		}),
+		simulator.WithGateways([]*simulator.Gateway{sgw}),
 	)
 	if err != nil {
 		panic(err)

@@ -134,6 +134,15 @@ duration="5m"
   # Payload (HEX encoded).
   payload="010203"
 
+  # Frequency (Hz).
+  frequency=868100000
+
+  # Bandwidth (Hz).
+  bandwidth=125000
+
+  # Spreading-factor.
+  spreading_factor=7
+
   # Gateway configuration.
   [simulator.gateway]
 
