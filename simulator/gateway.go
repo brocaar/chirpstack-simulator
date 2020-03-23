@@ -1,8 +1,9 @@
 package simulator
 
 import (
-	"fmt"
+	"bytes"
 	"sync"
+	"text/template"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -29,6 +30,9 @@ type Gateway struct {
 	downlinkTxNAckRate int
 	downlinkTxCounter  int
 	downlinkTxAckDelay time.Duration
+
+	eventTopicTemplate   *template.Template
+	commandTopicTemplate *template.Template
 }
 
 // WithMQTTClient sets the MQTT client for the gateway.
@@ -94,6 +98,34 @@ func WithDownlinkTxAckDelay(d time.Duration) GatewayOption {
 	}
 }
 
+// WithEventTopicTemplate sets the event (gw > ns) topic template.
+// Example: 'gateway/{{ .GatewayID }}/event/{{ .Event }}'
+func WithEventTopicTemplate(tt string) GatewayOption {
+	return func(g *Gateway) error {
+		var err error
+		g.eventTopicTemplate, err = template.New("event").Parse(tt)
+		if err != nil {
+			return errors.Wrap(err, "parse event topic template error")
+		}
+
+		return nil
+	}
+}
+
+// WithCommandTopicTemplate sets the command (ns > gw) topic template.
+// Example: 'gateway/{{ .GatewayID }}/command/{{ .Command }}'
+func WithCommandTopicTemplate(ct string) GatewayOption {
+	return func(g *Gateway) error {
+		var err error
+		g.commandTopicTemplate, err = template.New("command").Parse(ct)
+		if err != nil {
+			return errors.Wrap(err, "parse command topic template error")
+		}
+
+		return nil
+	}
+}
+
 // NewGateway creates a new gateway, using the given MQTT client for sending
 // and receiving.
 func NewGateway(opts ...GatewayOption) (*Gateway, error) {
@@ -107,15 +139,17 @@ func NewGateway(opts ...GatewayOption) (*Gateway, error) {
 		}
 	}
 
+	downlinkTopic := gw.getCommandTopic("down")
+
 	log.WithFields(log.Fields{
 		"gateway_id": gw.gatewayID,
-		"topic":      gw.getDownlinkTopic(),
+		"topic":      downlinkTopic,
 	}).Info("simulator: subscribing to gateway mqtt topic")
 	for {
-		if token := gw.mqtt.Subscribe(gw.getDownlinkTopic(), 0, gw.downlinkEventHandler); token.Wait() && token.Error() != nil {
+		if token := gw.mqtt.Subscribe(downlinkTopic, 0, gw.downlinkEventHandler); token.Wait() && token.Error() != nil {
 			log.WithError(token.Error()).WithFields(log.Fields{
 				"gateway_id": gw.gatewayID,
-				"topic":      gw.getDownlinkTopic(),
+				"topic":      downlinkTopic,
 			}).Error("simulator: subscribe to mqtt topic error")
 			time.Sleep(time.Second * 2)
 		} else {
@@ -146,12 +180,14 @@ func (g *Gateway) SendUplinkFrame(pl gw.UplinkFrame) error {
 		return errors.Wrap(err, "send uplink frame error")
 	}
 
+	uplinkTopic := g.getEventTopic("up")
+
 	log.WithFields(log.Fields{
 		"gateway_id": g.gatewayID,
-		"topic":      g.getUplinkTopic(),
+		"topic":      uplinkTopic,
 	}).Debug("simulator: publish uplink frame")
 
-	if token := g.mqtt.Publish(g.getUplinkTopic(), 0, false, b); token.Wait() && token.Error() != nil {
+	if token := g.mqtt.Publish(uplinkTopic, 0, false, b); token.Wait() && token.Error() != nil {
 		return errors.Wrap(err, "simulator: publish uplink frame error")
 	}
 
@@ -167,13 +203,15 @@ func (g *Gateway) sendDownlinkTxAck(pl gw.DownlinkTXAck) error {
 		return errors.Wrap(err, "send tx ack error")
 	}
 
+	ackTopic := g.getEventTopic("ack")
+
 	log.WithFields(log.Fields{
 		"gateway_id": g.gatewayID,
-		"topic":      g.getDownlinkTxAckTopic(),
+		"topic":      ackTopic,
 		"error":      pl.Error,
 	}).Debug("simulator: publish downlink tx ack")
 
-	if token := g.mqtt.Publish(g.getDownlinkTxAckTopic(), 0, false, b); token.Wait() && token.Error() != nil {
+	if token := g.mqtt.Publish(ackTopic, 0, false, b); token.Wait() && token.Error() != nil {
 		return errors.Wrap(err, "simulator: publish downlink tx ack error")
 	}
 
@@ -195,16 +233,32 @@ func (g *Gateway) addDevice(devEUI lorawan.EUI64, c chan gw.DownlinkFrame) {
 	g.devices[devEUI] = c
 }
 
-func (g *Gateway) getUplinkTopic() string {
-	return fmt.Sprintf("gateway/%s/event/up", g.gatewayID)
+func (g *Gateway) getEventTopic(event string) string {
+	topic := bytes.NewBuffer(nil)
+
+	err := g.eventTopicTemplate.Execute(topic, struct {
+		GatewayID lorawan.EUI64
+		Event     string
+	}{g.gatewayID, event})
+	if err != nil {
+		log.WithError(err).Fatal("execute event topic template error")
+	}
+
+	return topic.String()
 }
 
-func (g *Gateway) getDownlinkTopic() string {
-	return fmt.Sprintf("gateway/%s/command/down", g.gatewayID)
-}
+func (g *Gateway) getCommandTopic(command string) string {
+	topic := bytes.NewBuffer(nil)
 
-func (g *Gateway) getDownlinkTxAckTopic() string {
-	return fmt.Sprintf("gateway/%s/event/ack", g.gatewayID)
+	err := g.commandTopicTemplate.Execute(topic, struct {
+		GatewayID lorawan.EUI64
+		Command   string
+	}{g.gatewayID, command})
+	if err != nil {
+		log.WithError(err).Fatal("execute command topic template error")
+	}
+
+	return topic.String()
 }
 
 func (g *Gateway) downlinkEventHandler(c mqtt.Client, msg mqtt.Message) {

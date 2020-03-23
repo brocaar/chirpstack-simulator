@@ -56,8 +56,10 @@ type Config struct {
 		} `mapstructure:"device"`
 
 		Gateway struct {
-			MinCount int `mapstructure:"min_count"`
-			MaxCount int `mapstructure:"max_count"`
+			MinCount             int    `mapstructure:"min_count"`
+			MaxCount             int    `mapstructure:"max_count"`
+			EventTopicTemplate   string `mapstructure:"event_topic_template"`
+			CommandTopicTemplate string `mapstructure:"command_topic_template"`
 		} `mapstructure:"gateway"`
 	} `mapstructure:"simulator"`
 

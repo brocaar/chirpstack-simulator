@@ -47,20 +47,22 @@ func Start(ctx context.Context, wg *sync.WaitGroup, c config.Config) error {
 		}
 
 		sim := simulation{
-			ctx:              ctx,
-			wg:               wg,
-			serviceProfileID: spID,
-			deviceCount:      c.Device.Count,
-			uplinkInterval:   c.Device.UplinkInterval,
-			fPort:            c.Device.FPort,
-			payload:          pl,
-			frequency:        c.Device.Frequency,
-			bandwidth:        c.Device.Bandwidth / 1000,
-			spreadingFactor:  c.Device.SpreadingFactor,
-			duration:         c.Duration,
-			gatewayMinCount:  c.Gateway.MinCount,
-			gatewayMaxCount:  c.Gateway.MaxCount,
-			deviceAppKeys:    make(map[lorawan.EUI64]lorawan.AES128Key),
+			ctx:                  ctx,
+			wg:                   wg,
+			serviceProfileID:     spID,
+			deviceCount:          c.Device.Count,
+			uplinkInterval:       c.Device.UplinkInterval,
+			fPort:                c.Device.FPort,
+			payload:              pl,
+			frequency:            c.Device.Frequency,
+			bandwidth:            c.Device.Bandwidth / 1000,
+			spreadingFactor:      c.Device.SpreadingFactor,
+			duration:             c.Duration,
+			gatewayMinCount:      c.Gateway.MinCount,
+			gatewayMaxCount:      c.Gateway.MaxCount,
+			deviceAppKeys:        make(map[lorawan.EUI64]lorawan.AES128Key),
+			eventTopicTemplate:   c.Gateway.EventTopicTemplate,
+			commandTopicTemplate: c.Gateway.CommandTopicTemplate,
 		}
 
 		go sim.start()
@@ -85,11 +87,13 @@ type simulation struct {
 	bandwidth       int
 	spreadingFactor int
 
-	serviceProfile  *api.ServiceProfile
-	deviceProfileID uuid.UUID
-	applicationID   int64
-	gatewayIDs      []lorawan.EUI64
-	deviceAppKeys   map[lorawan.EUI64]lorawan.AES128Key
+	serviceProfile       *api.ServiceProfile
+	deviceProfileID      uuid.UUID
+	applicationID        int64
+	gatewayIDs           []lorawan.EUI64
+	deviceAppKeys        map[lorawan.EUI64]lorawan.AES128Key
+	eventTopicTemplate   string
+	commandTopicTemplate string
 }
 
 func (s *simulation) start() {
@@ -174,6 +178,8 @@ func (s *simulation) runSimulation() error {
 		gw, err := simulator.NewGateway(
 			simulator.WithGatewayID(gatewayID),
 			simulator.WithMQTTClient(ns.Client()),
+			simulator.WithEventTopicTemplate(s.eventTopicTemplate),
+			simulator.WithCommandTopicTemplate(s.commandTopicTemplate),
 		)
 		if err != nil {
 			return errors.Wrap(err, "new gateway error")

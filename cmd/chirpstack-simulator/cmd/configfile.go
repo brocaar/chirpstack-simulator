@@ -129,6 +129,12 @@ log_level={{ .General.LogLevel }}
 #   # Gateway configuration.
 #   [simulator.gateway]
 #
+#   # Event topic template.
+#   event_topic_template="{{ "gateway/{{ .GatewayID }}/event/{{ .Event }}" }}"
+#
+#   # Command topic template.
+#   command_topic_template="{{ "gateway/{{ .GatewayID }}/command/{{ .Command }}" }}"
+#
 #   # Min number of receiving gateways.
 #   min_count=3
 #
@@ -151,6 +157,8 @@ duration="{{ $element.Duration }}"
   [simulator.gateway]
   min_count={{ $element.Gateway.MinCount }}
   max_count={{ $element.Gateway.MaxCount }}
+  event_topic_template="{{ $element.Gateway.EventTopicTemplate }}"
+  command_topic_template="{{ $element.Gateway.CommandTopicTemplate }}"
 {{ end }}
 
 # Prometheus metrics configuration.

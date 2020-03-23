@@ -152,6 +152,12 @@ duration="5m"
   # Max number of receiving gateways.
   max_count=5
 
+  # Event topic template.
+  event_topic_template="gateway/{{ .GatewayID }}/event/{{ .Event }}"
+
+  # Command topic template.
+  command_topic_template="gateway/{{ .GatewayID }}/command/{{ .Command }}"
+
 
 # Prometheus metrics configuration.
 #
