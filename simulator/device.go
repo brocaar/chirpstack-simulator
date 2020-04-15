@@ -111,6 +111,14 @@ func WithDevEUI(devEUI lorawan.EUI64) DeviceOption {
 	}
 }
 
+// WithJoinEUI sets the JoinEUI.
+func WithJoinEUI(joinEUI lorawan.EUI64) DeviceOption {
+	return func(d *Device) error {
+		d.joinEUI = joinEUI
+		return nil
+	}
+}
+
 // WithUplinkInterval sets the uplink interval.
 func WithUplinkInterval(interval time.Duration) DeviceOption {
 	return func(d *Device) error {
