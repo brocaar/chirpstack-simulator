@@ -2,6 +2,9 @@ package simulator
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
+	"io/ioutil"
 	"sync"
 	"text/template"
 	"time"
@@ -55,6 +58,55 @@ func WithMQTTCredentials(server, username, password string) GatewayOption {
 
 		log.WithFields(log.Fields{
 			"server": server,
+		}).Info("simulator: connecting to mqtt broker")
+
+		client := mqtt.NewClient(opts)
+		if token := client.Connect(); token.Wait() && token.Error() != nil {
+			return errors.Wrap(token.Error(), "mqtt client connect error")
+		}
+
+		g.mqtt = client
+
+		return nil
+	}
+}
+
+// WithMQTTCertificates initializes a new MQTT client with the given CA and
+// client-certificate files.
+func WithMQTTCertificates(server, caCert, tlsCert, tlsKey string) GatewayOption {
+	return func(g *Gateway) error {
+		tlsConfig := &tls.Config{}
+
+		if caCert != "" {
+			b, err := ioutil.ReadFile(caCert)
+			if err != nil {
+				return errors.Wrap(err, "read ca certificate error")
+			}
+
+			certpool := x509.NewCertPool()
+			certpool.AppendCertsFromPEM(b)
+			tlsConfig.RootCAs = certpool
+		}
+
+		if tlsCert != "" && tlsKey != "" {
+			kp, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
+			if err != nil {
+				return errors.Wrap(err, "read tls key-pair error")
+			}
+
+			tlsConfig.Certificates = []tls.Certificate{kp}
+		}
+
+		opts := mqtt.NewClientOptions()
+		opts.AddBroker(server)
+		opts.SetCleanSession(true)
+		opts.SetAutoReconnect(true)
+		opts.SetTLSConfig(tlsConfig)
+
+		log.WithFields(log.Fields{
+			"ca_cert":  caCert,
+			"tls_cert": tlsCert,
+			"tls_key":  tlsKey,
 		}).Info("simulator: connecting to mqtt broker")
 
 		client := mqtt.NewClient(opts)
