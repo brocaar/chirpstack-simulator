@@ -112,6 +112,8 @@ func (s *simulation) start() {
 	}
 
 	s.wg.Done()
+
+	log.Info("simulation: tear-down completed")
 }
 
 func (s *simulation) init() error {
