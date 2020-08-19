@@ -215,7 +215,7 @@ func (s *simulation) runSimulation() error {
 			simulator.WithDevEUI(devEUI),
 			simulator.WithAppKey(appKey),
 			simulator.WithUplinkInterval(s.uplinkInterval),
-			simulator.WithUplinkPayload(s.fPort, s.payload),
+			simulator.WithUplinkPayload(false, s.fPort, s.payload),
 			simulator.WithGateways(gws),
 			simulator.WithUplinkTXInfo(gw.UplinkTXInfo{
 				Frequency:  uint32(s.frequency),

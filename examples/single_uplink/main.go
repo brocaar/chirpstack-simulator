@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"sync"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/brocaar/chirpstack-simulator/simulator"
 	"github.com/brocaar/lorawan"
+	log "github.com/sirupsen/logrus"
 )
 
 // This example simulates an OTAA activation and the sending of a single uplink
@@ -37,7 +39,7 @@ func main() {
 		simulator.WithRandomDevNonce(),
 		simulator.WithUplinkInterval(time.Second),
 		simulator.WithUplinkCount(1),
-		simulator.WithUplinkPayload(10, []byte{1, 2, 3}),
+		simulator.WithUplinkPayload(true, 10, []byte{1, 2, 3}),
 		simulator.WithUplinkTXInfo(gw.UplinkTXInfo{
 			Frequency:  868100000,
 			Modulation: common.Modulation_LORA,
@@ -50,6 +52,16 @@ func main() {
 			},
 		}),
 		simulator.WithGateways([]*simulator.Gateway{sgw}),
+		simulator.WithDownlinkHandlerFunc(func(conf, ack bool, fCntDown uint32, fPort uint8, data []byte) error {
+			log.WithFields(log.Fields{
+				"ack":       ack,
+				"fcnt_down": fCntDown,
+				"f_port":    fPort,
+				"data":      hex.EncodeToString(data),
+			}).Info("WithDownlinkHandlerFunc triggered")
+
+			return nil
+		}),
 	)
 	if err != nil {
 		panic(err)

@@ -4,6 +4,8 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -53,6 +55,9 @@ type Device struct {
 	// Total number of uplinks to send, before terminating.
 	uplinkCount uint32
 
+	// Device sends uplink as confirmed.
+	confirmed bool
+
 	// Payload (plaintext) which the device sends as uplink.
 	payload []byte
 
@@ -93,6 +98,9 @@ type Device struct {
 
 	// TXInfo for uplink
 	uplinkTXInfo gw.UplinkTXInfo
+
+	// Downlink handler function.
+	downlinkHandlerFunc func(confirmed, ack bool, fCntDown uint32, fPort uint8, data []byte) error
 }
 
 // WithAppKey sets the AppKey.
@@ -137,10 +145,11 @@ func WithUplinkCount(count uint32) DeviceOption {
 }
 
 // WithUplinkPayload sets the uplink payload.
-func WithUplinkPayload(fPort uint8, pl []byte) DeviceOption {
+func WithUplinkPayload(confirmed bool, fPort uint8, pl []byte) DeviceOption {
 	return func(d *Device) error {
 		d.fPort = fPort
 		d.payload = pl
+		d.confirmed = confirmed
 		return nil
 	}
 }
@@ -170,6 +179,14 @@ func WithRandomDevNonce() DeviceOption {
 func WithUplinkTXInfo(txInfo gw.UplinkTXInfo) DeviceOption {
 	return func(d *Device) error {
 		d.uplinkTXInfo = txInfo
+		return nil
+	}
+}
+
+// WithDownlinkHandlerFunc sets the downlink handler func.
+func WithDownlinkHandlerFunc(f func(confirmed, ack bool, fCntDown uint32, fPort uint8, data []byte) error) DeviceOption {
+	return func(d *Device) error {
+		d.downlinkHandlerFunc = f
 		return nil
 	}
 }
@@ -225,10 +242,14 @@ func (d *Device) uplinkLoop() {
 			d.joinRequest()
 			time.Sleep(6 * time.Second)
 		case deviceStateActivated:
-			d.unconfirmedDataUp()
+			d.dataUp()
 
 			if d.uplinkCount != 0 {
 				if d.fCntUp >= d.uplinkCount {
+					// d.cancel() also cancels the downlink loop. Wait one
+					// second in order to process any potential downlink
+					// response (e.g. and ack).
+					time.Sleep(time.Second)
 					d.cancel()
 					return
 				}
@@ -262,6 +283,8 @@ func (d *Device) downlinkLoop() {
 				switch phy.MHDR.MType {
 				case lorawan.JoinAccept:
 					return d.joinAccept(phy)
+				case lorawan.UnconfirmedDataDown, lorawan.ConfirmedDataDown:
+					return d.downlinkData(phy)
 				}
 
 				return nil
@@ -302,16 +325,22 @@ func (d *Device) joinRequest() {
 	deviceJoinRequestCounter().Inc()
 }
 
-// unconfirmedDataUp sends an unconfirmed data uplink.
-func (d *Device) unconfirmedDataUp() {
+// dataUp sends an data uplink.
+func (d *Device) dataUp() {
 	log.WithFields(log.Fields{
-		"dev_eui":  d.devEUI,
-		"dev_addr": d.devAddr,
-	}).Debug("simulator: send unconfirmed data up")
+		"dev_eui":   d.devEUI,
+		"dev_addr":  d.devAddr,
+		"confirmed": d.confirmed,
+	}).Debug("simulator: send uplink data")
+
+	mType := lorawan.UnconfirmedDataUp
+	if d.confirmed {
+		mType = lorawan.ConfirmedDataUp
+	}
 
 	phy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
-			MType: lorawan.UnconfirmedDataUp,
+			MType: mType,
 			Major: lorawan.LoRaWANR1,
 		},
 		MACPayload: &lorawan.MACPayload{
@@ -395,6 +424,69 @@ func (d *Device) joinAccept(phy lorawan.PHYPayload) error {
 	deviceJoinAcceptCounter().Inc()
 
 	return nil
+}
+
+// downlinkData validates and handles the downlink data.
+func (d *Device) downlinkData(phy lorawan.PHYPayload) error {
+	ok, err := phy.ValidateDownlinkDataMIC(lorawan.LoRaWAN1_0, 0, d.nwkSKey)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"dev_eui": d.devEUI,
+		}).Debug("simulator: invalid downlink data MIC")
+		return nil
+	}
+
+	if !ok {
+		log.WithFields(log.Fields{
+			"dev_eui": d.devEUI,
+		}).Debug("simulator: invalid downlink data MIC")
+		return nil
+	}
+
+	macPL, ok := phy.MACPayload.(*lorawan.MACPayload)
+	if !ok {
+		return fmt.Errorf("expected *lorawan.MACPayload, got: %T", phy.MACPayload)
+	}
+
+	gap := uint32(uint16(macPL.FHDR.FCnt) - uint16(d.fCntDown%(1<<16)))
+	d.fCntDown = d.fCntDown + gap
+
+	var data []byte
+	var fPort uint8
+	if macPL.FPort != nil {
+		fPort = *macPL.FPort
+	}
+
+	if fPort != 0 {
+		err := phy.DecryptFRMPayload(d.appSKey)
+		if err != nil {
+			return errors.Wrap(err, "decrypt frmpayload error")
+		}
+
+		if len(macPL.FRMPayload) != 0 {
+			pl, ok := macPL.FRMPayload[0].(*lorawan.DataPayload)
+			if !ok {
+				return fmt.Errorf("expected *lorawan.DataPayload, got: %T", macPL.FRMPayload[0])
+			}
+
+			data = pl.Bytes
+		}
+	}
+
+	log.WithFields(log.Fields{
+		"confirmed": phy.MHDR.MType == lorawan.ConfirmedDataDown,
+		"ack":       macPL.FHDR.FCtrl.ACK,
+		"f_cnt":     d.fCntDown,
+		"dev_eui":   d.devEUI,
+		"f_port":    fPort,
+		"data":      hex.EncodeToString(data),
+	}).Info("simulator: device received downlink data")
+
+	if d.downlinkHandlerFunc == nil {
+		return nil
+	}
+
+	return d.downlinkHandlerFunc(phy.MHDR.MType == lorawan.ConfirmedDataDown, macPL.FHDR.FCtrl.ACK, d.fCntDown, fPort, data)
 }
 
 // sendUplink sends
