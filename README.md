@@ -119,6 +119,12 @@ service_profile_id="1f32476e-a112-4f00-bcc7-4aab4bfefa1d"
 # will run until terminated.
 duration="5m"
 
+# Activation time.
+#
+# This is the time that the simulator takes to activate the devices. This
+# value must be less than the simulator duration.
+activation_time="1m"
+
   # Device configuration.
   [simulator.device]
 

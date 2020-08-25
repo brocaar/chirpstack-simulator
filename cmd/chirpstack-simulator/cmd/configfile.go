@@ -99,8 +99,14 @@ log_level={{ .General.LogLevel }}
 # # Duration.
 # #
 # # This defines the duration of the simulation. If set to '0s', the simulation
-# # will run until terminated.
+# # will run until terminated. This includes the activation time.
 # duration="5m"
+#
+# # Activation time.
+# #
+# # This is the time that the simulator takes to activate the devices. This
+# # value must be less than the simulator duration.
+# activation_time="1m"
 #
 #   # Device configuration.
 #   [simulator.device]
@@ -144,6 +150,7 @@ log_level={{ .General.LogLevel }}
 [[simulator]]
 service_profile_id="{{ $element.ServiceProfileID }}"
 duration="{{ $element.Duration }}"
+activation_time="{{ $element.ActivationTime }}"
 
   [simulator.device]
   count={{ $element.Device.Count }}

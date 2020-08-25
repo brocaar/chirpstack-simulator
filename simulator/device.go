@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -101,6 +100,9 @@ type Device struct {
 
 	// Downlink handler function.
 	downlinkHandlerFunc func(confirmed, ack bool, fCntDown uint32, fPort uint8, data []byte) error
+
+	// OTAA delay.
+	otaaDelay time.Duration
 }
 
 // WithAppKey sets the AppKey.
@@ -123,6 +125,14 @@ func WithDevEUI(devEUI lorawan.EUI64) DeviceOption {
 func WithJoinEUI(joinEUI lorawan.EUI64) DeviceOption {
 	return func(d *Device) error {
 		d.joinEUI = joinEUI
+		return nil
+	}
+}
+
+// WithOTAADelay sets the OTAA delay.
+func WithOTAADelay(delay time.Duration) DeviceOption {
+	return func(d *Device) error {
+		d.otaaDelay = delay
 		return nil
 	}
 }
@@ -234,7 +244,7 @@ func (d *Device) uplinkLoop() {
 		cancelled = true
 	}()
 
-	time.Sleep(time.Duration(rand.Intn(int(d.uplinkInterval))))
+	time.Sleep(d.otaaDelay)
 
 	for !cancelled {
 		switch d.getState() {

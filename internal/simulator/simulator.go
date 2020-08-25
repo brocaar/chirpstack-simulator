@@ -51,6 +51,7 @@ func Start(ctx context.Context, wg *sync.WaitGroup, c config.Config) error {
 			wg:                   wg,
 			serviceProfileID:     spID,
 			deviceCount:          c.Device.Count,
+			activationTime:       c.ActivationTime,
 			uplinkInterval:       c.Device.UplinkInterval,
 			fPort:                c.Device.FPort,
 			payload:              pl,
@@ -82,6 +83,7 @@ type simulation struct {
 
 	fPort           uint8
 	payload         []byte
+	activationTime  time.Duration
 	uplinkInterval  time.Duration
 	frequency       int
 	bandwidth       int
@@ -215,6 +217,7 @@ func (s *simulation) runSimulation() error {
 			simulator.WithDevEUI(devEUI),
 			simulator.WithAppKey(appKey),
 			simulator.WithUplinkInterval(s.uplinkInterval),
+			simulator.WithOTAADelay(time.Duration(mrand.Intn(int(s.activationTime)))),
 			simulator.WithUplinkPayload(false, s.fPort, s.payload),
 			simulator.WithGateways(gws),
 			simulator.WithUplinkTXInfo(gw.UplinkTXInfo{
