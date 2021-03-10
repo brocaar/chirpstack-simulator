@@ -54,7 +54,7 @@ log_level=4
   # token can be generated using the login API endpoint. In the near-future
   # it will be possible to generate these tokens within the web-interface:
   # https://github.com/brocaar/chirpstack-application-server/pull/421
-  jwt_token=""
+  jwt_token="PUT_YOUR_JWT_TOKEN_HERE"
 
   # Server.
   #
@@ -66,7 +66,7 @@ log_level=4
   # Insecure.
   #
   # Set this to true when the endpoint is not using TLS.
-  insecure=false
+  insecure=true
 
 
   # MQTT integration configuration.
@@ -111,7 +111,7 @@ log_level=4
 #
 # It is recommended to create a new organization with a new service-profile
 # in the ChirpStack Application Server.
-service_profile_id="1f32476e-a112-4f00-bcc7-4aab4bfefa1d"
+service_profile_id="PUT_YOUR_SERVICE_PROFILE_ID_HERE"
 
 # Duration.
 #
