@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"io/ioutil"
+	"time"
 
 	"github.com/brocaar/chirpstack-simulator/internal/config"
 	log "github.com/sirupsen/logrus"
@@ -39,6 +40,7 @@ func init() {
 	viper.BindPFlag("general.log_level", rootCmd.PersistentFlags().Lookup("log-level"))
 
 	viper.SetDefault("application_server.api.server", "127.0.0.1:8080")
+	viper.SetDefault("application_server.api.timeout", 1*time.Second)
 	viper.SetDefault("application_server.integration.mqtt.server", "tcp://127.0.0.1:1883")
 	viper.SetDefault("network_server.gateway.backend.mqtt.server", "tcp://127.0.0.1:1883")
 	viper.SetDefault("prometheus.bind", "0.0.0.0:9000")

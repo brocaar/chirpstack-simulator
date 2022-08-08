@@ -68,6 +68,11 @@ log_level=4
   # Set this to true when the endpoint is not using TLS.
   insecure=true
 
+  # Timeout.
+  # 
+  # This determines the maximum amount of time connecting to the API may take.
+  # You may increase the timeout if the context deadline exceeded.
+  timeout="2s"
 
   # MQTT integration configuration.
   #

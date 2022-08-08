@@ -15,9 +15,10 @@ type Config struct {
 
 	ApplicationServer struct {
 		API struct {
-			JWTToken string `mapstructure:"jwt_token"`
-			Server   string `mapstructure:"server"`
-			Insecure bool   `mapstructure:"insecure"`
+			JWTToken string        `mapstructure:"jwt_token"`
+			Server   string        `mapstructure:"server"`
+			Insecure bool          `mapstructure:"insecure"`
+			Timeout  time.Duration `mapstructure:"timeout"`
 		} `mapstructure:"api"`
 
 		Integration struct {

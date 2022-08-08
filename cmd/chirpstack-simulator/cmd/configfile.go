@@ -49,6 +49,11 @@ log_level={{ .General.LogLevel }}
   # Set this to true when the endpoint is not using TLS.
   insecure={{ .ApplicationServer.API.Insecure }}
 
+  # Timeout.
+  # 
+  # This determines the maximum amount of time connecting to the API may take.
+  # You may increase the timeout if the context deadline exceeded.
+  timeout="{{ .ApplicationServer.API.Timeout }}"
 
   # MQTT integration configuration.
   #
