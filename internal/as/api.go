@@ -3,7 +3,6 @@ package as
 import (
 	"context"
 	"crypto/tls"
-	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/pkg/errors"
@@ -40,6 +39,7 @@ func Setup(c config.Config) error {
 	log.WithFields(log.Fields{
 		"server":   conf.API.Server,
 		"insecure": conf.API.Insecure,
+		"timeout":  conf.API.Timeout,
 	}).Info("as: connecting api client")
 
 	dialOpts := []grpc.DialOption{
@@ -53,7 +53,7 @@ func Setup(c config.Config) error {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), conf.API.Timeout)
 	defer cancel()
 
 	conn, err := grpc.DialContext(ctx, conf.API.Server, dialOpts...)
