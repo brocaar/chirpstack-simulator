@@ -12,8 +12,8 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/brocaar/lorawan"
+	"github.com/chirpstack/chirpstack/api/go/v4/gw"
 )
 
 // DeviceOption is the interface for a device option.
@@ -96,7 +96,7 @@ type Device struct {
 	randomDevNonce bool
 
 	// TXInfo for uplink
-	uplinkTXInfo gw.UplinkTXInfo
+	uplinkTXInfo gw.UplinkTxInfo
 
 	// Downlink handler function.
 	downlinkHandlerFunc func(confirmed, ack bool, fCntDown uint32, fPort uint8, data []byte) error
@@ -186,7 +186,7 @@ func WithRandomDevNonce() DeviceOption {
 }
 
 // WithUplinkTXInfo sets the TXInfo used for simulating the uplinks.
-func WithUplinkTXInfo(txInfo gw.UplinkTXInfo) DeviceOption {
+func WithUplinkTXInfo(txInfo gw.UplinkTxInfo) DeviceOption {
 	return func(d *Device) error {
 		d.uplinkTXInfo = txInfo
 		return nil
@@ -283,25 +283,29 @@ func (d *Device) downlinkLoop() {
 			return
 
 		case pl := <-d.downlinkFrames:
-			err := func() error {
-				var phy lorawan.PHYPayload
+			for _, item := range pl.Items {
+				err := func() error {
+					var phy lorawan.PHYPayload
 
-				if err := phy.UnmarshalBinary(pl.PhyPayload); err != nil {
-					return errors.Wrap(err, "unmarshal phypayload error")
+					if err := phy.UnmarshalBinary(item.PhyPayload); err != nil {
+						return errors.Wrap(err, "unmarshal phypayload error")
+					}
+
+					switch phy.MHDR.MType {
+					case lorawan.JoinAccept:
+						return d.joinAccept(phy)
+					case lorawan.UnconfirmedDataDown, lorawan.ConfirmedDataDown:
+						return d.downlinkData(phy)
+					}
+
+					return nil
+				}()
+
+				if err != nil {
+					log.WithError(err).Error("simulator: handle downlink frame error")
 				}
 
-				switch phy.MHDR.MType {
-				case lorawan.JoinAccept:
-					return d.joinAccept(phy)
-				case lorawan.UnconfirmedDataDown, lorawan.ConfirmedDataDown:
-					return d.downlinkData(phy)
-				}
-
-				return nil
-			}()
-
-			if err != nil {
-				log.WithError(err).Error("simulator: handle downlink frame error")
+				break
 			}
 		}
 	}

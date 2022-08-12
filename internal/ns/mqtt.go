@@ -12,7 +12,7 @@ var mqttClient mqtt.Client
 
 // Setup configures the NS MQTT gateway backend.
 func Setup(c config.Config) error {
-	conf := c.NetworkServer.Gateway.Backend.MQTT
+	conf := c.ChirpStack.Gateway.Backend.MQTT
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(conf.Server)

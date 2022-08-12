@@ -13,9 +13,9 @@ type Config struct {
 		LogLevel int `mapstructure:"log_level"`
 	}
 
-	ApplicationServer struct {
+	ChirpStack struct {
 		API struct {
-			JWTToken string `mapstructure:"jwt_token"`
+			APIKey   string `mapstructure:"api_key"`
 			Server   string `mapstructure:"server"`
 			Insecure bool   `mapstructure:"insecure"`
 		} `mapstructure:"api"`
@@ -27,9 +27,7 @@ type Config struct {
 				Password string `mapstructure:"password"`
 			} `mapstructure:"mqtt"`
 		} `mapstructure:"integration"`
-	} `mapstructure:"application_server"`
 
-	NetworkServer struct {
 		Gateway struct {
 			Backend struct {
 				MQTT struct {
@@ -39,12 +37,12 @@ type Config struct {
 				} `mapstructure:"mqtt"`
 			} `mapstructure:"backend"`
 		} `mapstructure:"gateway"`
-	} `mapstructure:"network_server"`
+	} `mapstructure:"chirpstack"`
 
 	Simulator []struct {
-		ServiceProfileID string        `mapstructure:"service_profile_id"`
-		Duration         time.Duration `mapstructure:"duration"`
-		ActivationTime   time.Duration `mapstructure:"activation_time"`
+		TenantID       string        `mapstructure:"tenant_id"`
+		Duration       time.Duration `mapstructure:"duration"`
+		ActivationTime time.Duration `mapstructure:"activation_time"`
 
 		Device struct {
 			Count           int           `mapstructure:"count"`

@@ -11,14 +11,14 @@ import (
 )
 
 const configTemplate = `[general]
-# Log level
-#
-# debug=5, info=4, warning=3, error=2, fatal=1, panic=0
-log_level={{ .General.LogLevel }}
+  # Log level
+  #
+  # debug=5, info=4, warning=3, error=2, fatal=1, panic=0
+  log_level={{ .General.LogLevel }}
 
 
-# Application Server configuration.
-[application_server]
+# ChirpStack configuration.
+[chirpstack]
 
   # API configuration.
   #
@@ -27,62 +27,51 @@ log_level={{ .General.LogLevel }}
   #   * Gateways
   #   * Application
   #   * Devices
-  [application_server.api]
+  [chirpstack.api]
 
-  # JWT token.
-  #
-  # The JWT token to connect to the ChirpStack Application Server API. This
-  # token can be generated using the login API endpoint. In the near-future
-  # it will be possible to generate these tokens within the web-interface:
-  # https://github.com/brocaar/chirpstack-application-server/pull/421
-  jwt_token="{{ .ApplicationServer.API.JWTToken }}"
+    # API key.
+    #
+    # The API key can be obtained through the ChirpStack web-interface.
+    api_key="{{ .ChirpStack.API.APIKey }}"
 
-  # Server.
-  #
-  # This must point to the external API server of the ChirpStack Application
-  # Server. When the server is running on the same machine, keep this to the
-  # default value.
-  server="{{ .ApplicationServer.API.Server }}"
+    # Server.
+    #
+    # This must point to the ChirpStack API interface.
+    server="{{ .ChirpStack.API.Server }}"
 
-  # Insecure.
-  #
-  # Set this to true when the endpoint is not using TLS.
-  insecure={{ .ApplicationServer.API.Insecure }}
+    # Insecure.
+    #
+    # Set this to true when the endpoint is not using TLS.
+    insecure={{ .ChirpStack.API.Insecure }}
 
 
-  # MQTT integration configuration.
-  #
-  # This integration is used for counting the number of uplinks that are
-  # published by the ChirpStack Application Server integration.
-  [application_server.integration.mqtt]
+    # MQTT integration configuration.
+    #
+    # This integration is used for counting the number of uplinks that are
+    # published by the ChirpStack MQTT integration.
+    [chirpstack.integration.mqtt]
 
-  # MQTT server.
-  server="{{ .ApplicationServer.Integration.MQTT.Server }}"
+    # MQTT server.
+    server="{{ .ChirpStack.Integration.MQTT.Server }}"
 
-  # Username.
-  username="{{ .ApplicationServer.Integration.MQTT.Username }}"
+    # Username.
+    username="{{ .ChirpStack.Integration.MQTT.Username }}"
 
-  # Password.
-  password="{{ .ApplicationServer.Integration.MQTT.Password }}"
+    # Password.
+    password="{{ .ChirpStack.Integration.MQTT.Password }}"
 
-
-# Network Server configuration.
-#
-# This configuration is used to simulate LoRa gateways using the MQTT gateway
-# backend.
-[network_server]
 
   # MQTT gateway backend.
-  [network_server.gateway.backend.mqtt]
+  [chirpstack.gateway.backend.mqtt]
 
-  # MQTT server.
-  server="{{ .NetworkServer.Gateway.Backend.MQTT.Server }}"
+    # MQTT server.
+    server="{{ .NetworkServer.Gateway.Backend.MQTT.Server }}"
 
-  # Username.
-  username="{{ .NetworkServer.Gateway.Backend.MQTT.Username }}"
+    # Username.
+    username="{{ .NetworkServer.Gateway.Backend.MQTT.Username }}"
 
-  # Password.
-  password="{{ .NetworkServer.Gateway.Backend.MQTT.Password }}"
+    # Password.
+    password="{{ .NetworkServer.Gateway.Backend.MQTT.Password }}"
 
 
 # Simulator configuration.
@@ -90,11 +79,10 @@ log_level={{ .General.LogLevel }}
 # Example:
 # [[simulator]]
 #
-# # Service-profile ID.
+# # Tenant ID.
 # #
-# # It is recommended to create a new organization with a new service-profile
-# # in the ChirpStack Application Server.
-# service_profile_id="1f32476e-a112-4f00-bcc7-4aab4bfefa1d"
+# # It is recommended to create a new tenant in ChirpStack.
+# tenant_id="1f32476e-a112-4f00-bcc7-4aab4bfefa1d"
 #
 # # Duration.
 # #
@@ -136,10 +124,10 @@ log_level={{ .General.LogLevel }}
 #   [simulator.gateway]
 #
 #   # Event topic template.
-#   event_topic_template="{{ "gateway/{{ .GatewayID }}/event/{{ .Event }}" }}"
+#   event_topic_template="eu868/{{ "gateway/{{ .GatewayID }}/event/{{ .Event }}" }}"
 #
 #   # Command topic template.
-#   command_topic_template="{{ "gateway/{{ .GatewayID }}/command/{{ .Command }}" }}"
+#   command_topic_template="eu868/{{ "gateway/{{ .GatewayID }}/command/{{ .Command }}" }}"
 #
 #   # Min number of receiving gateways.
 #   min_count=3

@@ -5,18 +5,18 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
+	"math/rand"
 	"sync"
 	"text/template"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/brocaar/lorawan"
+	"github.com/chirpstack/chirpstack/api/go/v4/gw"
 )
 
 // GatewayOption is the interface for a gateway option.
@@ -214,17 +214,12 @@ func NewGateway(opts ...GatewayOption) (*Gateway, error) {
 
 // SendUplinkFrame sends the given uplink frame.
 func (g *Gateway) SendUplinkFrame(pl gw.UplinkFrame) error {
-	uplinkID, err := uuid.NewV4()
-	if err != nil {
-		return errors.Wrap(err, "new uuid error")
-	}
-
-	pl.RxInfo = &gw.UplinkRXInfo{
-		GatewayId: g.gatewayID[:],
+	pl.RxInfo = &gw.UplinkRxInfo{
+		GatewayId: g.gatewayID.String(),
 		Rssi:      50,
-		LoraSnr:   5.5,
+		Snr:       5.5,
 		Context:   []byte{0x01, 0x02, 0x03, 0x04},
-		UplinkId:  uplinkID[:],
+		UplinkId:  rand.Uint32(),
 	}
 
 	b, err := proto.Marshal(&pl)
@@ -249,7 +244,7 @@ func (g *Gateway) SendUplinkFrame(pl gw.UplinkFrame) error {
 }
 
 // sendDownlinkTxAck sends the given downlink Ack.
-func (g *Gateway) sendDownlinkTxAck(pl gw.DownlinkTXAck) error {
+func (g *Gateway) sendDownlinkTxAck(pl gw.DownlinkTxAck) error {
 	b, err := proto.Marshal(&pl)
 	if err != nil {
 		return errors.Wrap(err, "send tx ack error")
@@ -260,7 +255,6 @@ func (g *Gateway) sendDownlinkTxAck(pl gw.DownlinkTXAck) error {
 	log.WithFields(log.Fields{
 		"gateway_id": g.gatewayID,
 		"topic":      ackTopic,
-		"error":      pl.Error,
 	}).Debug("simulator: publish downlink tx ack")
 
 	if token := g.mqtt.Publish(ackTopic, 0, false, b); token.Wait() && token.Error() != nil {
@@ -339,19 +333,33 @@ func (g *Gateway) downlinkEventHandler(c mqtt.Client, msg mqtt.Message) {
 
 	time.Sleep(g.downlinkTxAckDelay)
 
-	ackError := ""
+	items := []*gw.DownlinkTxAckItem{}
+
 	g.downlinkTxCounter++
 	if g.downlinkTxCounter == g.downlinkTxNAckRate {
-		ackError = "COLLISION_PACKET"
 		g.downlinkTxCounter = 0
+
+		for range pl.Items {
+			items = append(items, &gw.DownlinkTxAckItem{
+				Status: gw.TxAckStatus_COLLISION_PACKET,
+			})
+		}
+
+	} else {
+		for range pl.Items {
+			items = append(items, &gw.DownlinkTxAckItem{
+				Status: gw.TxAckStatus_OK,
+			})
+		}
 	}
 
-	if err := g.sendDownlinkTxAck(gw.DownlinkTXAck{
-		GatewayId:  g.gatewayID[:],
-		Token:      pl.Token,
+	txNack := gw.DownlinkTxAck{
+		GatewayId:  g.gatewayID.String(),
 		DownlinkId: pl.DownlinkId,
-		Error:      ackError,
-	}); err != nil {
+		Items:      items,
+	}
+
+	if err := g.sendDownlinkTxAck(txNack); err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"gateway_id": g.gatewayID,
 		}).Error("simulator: send downlink tx ack error")
