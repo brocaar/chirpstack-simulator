@@ -65,13 +65,13 @@ const configTemplate = `[general]
   [chirpstack.gateway.backend.mqtt]
 
     # MQTT server.
-    server="{{ .NetworkServer.Gateway.Backend.MQTT.Server }}"
+    server="{{ .ChirpStack.Gateway.Backend.MQTT.Server }}"
 
     # Username.
-    username="{{ .NetworkServer.Gateway.Backend.MQTT.Username }}"
+    username="{{ .ChirpStack.Gateway.Backend.MQTT.Username }}"
 
     # Password.
-    password="{{ .NetworkServer.Gateway.Backend.MQTT.Password }}"
+    password="{{ .ChirpStack.Gateway.Backend.MQTT.Password }}"
 
 
 # Simulator configuration.
