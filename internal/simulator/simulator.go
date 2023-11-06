@@ -88,6 +88,7 @@ type simulation struct {
 	deviceProfileID      uuid.UUID
 	applicationID        string
 	gatewayIDs           []lorawan.EUI64
+	deviceAppKeysMutex   sync.Mutex
 	deviceAppKeys        map[lorawan.EUI64]lorawan.AES128Key
 	eventTopicTemplate   string
 	commandTopicTemplate string
@@ -323,6 +324,7 @@ func (s *simulation) setupDeviceProfile() error {
 			RegParamsRevision: common.RegParamsRevision_B,
 			SupportsOtaa:      true,
 			Region:            common.Region_EU868,
+			AdrAlgorithmId:    "default",
 		},
 	})
 	if err != nil {
@@ -389,45 +391,57 @@ func (s *simulation) tearDownApplication() error {
 func (s *simulation) setupDevices() error {
 	log.Info("simulator: init devices")
 
+	var wg sync.WaitGroup
+
 	for i := 0; i < s.deviceCount; i++ {
-		var devEUI lorawan.EUI64
-		var appKey lorawan.AES128Key
+		wg.Add(1)
 
-		if _, err := rand.Read(devEUI[:]); err != nil {
-			return err
-		}
-		if _, err := rand.Read(appKey[:]); err != nil {
-			return err
-		}
+		go func() {
+			var devEUI lorawan.EUI64
+			var appKey lorawan.AES128Key
 
-		_, err := as.Device().Create(context.Background(), &api.CreateDeviceRequest{
-			Device: &api.Device{
-				DevEui:          devEUI.String(),
-				Name:            devEUI.String(),
-				Description:     devEUI.String(),
-				ApplicationId:   s.applicationID,
-				DeviceProfileId: s.deviceProfileID.String(),
-			},
-		})
-		if err != nil {
-			return errors.Wrap(err, "create device error")
-		}
+			if _, err := rand.Read(devEUI[:]); err != nil {
+				log.Fatal(err)
+			}
+			if _, err := rand.Read(appKey[:]); err != nil {
+				log.Fatal(err)
+			}
 
-		_, err = as.Device().CreateKeys(context.Background(), &api.CreateDeviceKeysRequest{
-			DeviceKeys: &api.DeviceKeys{
-				DevEui: devEUI.String(),
+			_, err := as.Device().Create(context.Background(), &api.CreateDeviceRequest{
+				Device: &api.Device{
+					DevEui:          devEUI.String(),
+					Name:            devEUI.String(),
+					Description:     devEUI.String(),
+					ApplicationId:   s.applicationID,
+					DeviceProfileId: s.deviceProfileID.String(),
+				},
+			})
+			if err != nil {
+				log.Fatal("create device error, error: %s", err)
+			}
 
-				// yes, this is correct for LoRaWAN 1.0.x!
-				// see the API documentation
-				NwkKey: appKey.String(),
-			},
-		})
-		if err != nil {
-			return errors.Wrap(err, "create device keys error")
-		}
+			_, err = as.Device().CreateKeys(context.Background(), &api.CreateDeviceKeysRequest{
+				DeviceKeys: &api.DeviceKeys{
+					DevEui: devEUI.String(),
 
-		s.deviceAppKeys[devEUI] = appKey
+					// yes, this is correct for LoRaWAN 1.0.x!
+					// see the API documentation
+					NwkKey: appKey.String(),
+				},
+			})
+			if err != nil {
+				log.Fatal("create device keys error, error: %s", err)
+			}
+
+			s.deviceAppKeysMutex.Lock()
+			s.deviceAppKeys[devEUI] = appKey
+			s.deviceAppKeysMutex.Unlock()
+			wg.Done()
+		}()
+
 	}
+
+	wg.Wait()
 
 	return nil
 }
